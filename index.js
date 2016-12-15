@@ -1,11 +1,9 @@
-/**
- * Created by K2 on 12/12/2016.
- */
 // Library Code
 //At this point only mp4 video is created.
 var aws = require('aws-sdk');
-var elastictranscoder = new aws.ElasticTranscoder();
 var path = require('path');
+var elastictranscoder = new aws.ElasticTranscoder();
+
 // return basename without extension
 function basename(path) {
     return path.split('/').reverse()[0].split('.')[0];
@@ -13,13 +11,13 @@ function basename(path) {
 
 // return output file name with timestamp and extension
 function outputKey(name, ext) {
-    return name + '_trans.' + ext ;
+    return name + '_trans.' + ext;
 }
 function notifySonicspan(filename, context){
     var lambda = new aws.Lambda({
         region: process.env.region
     });
-    console.log('....notifying sonicspan from imgresize');
+    console.log('....notifying sonicspan from video-transcoder-dev ' + filename);
     var params = {
         FunctionName: process.env.functionName,
         Payload: JSON.stringify({"data": filename})
@@ -30,6 +28,7 @@ function notifySonicspan(filename, context){
             context.done('error', error);
         }
         if(data.Payload){
+            console.log('---Nice notification went down!');
             context.succeed(data.Payload)
         }
     });
@@ -43,19 +42,24 @@ exports.handler = function(event, context) {
         Input: {
             Key: key
         },
-        PipelineId: '1479569182711-766cpt',
+        PipelineId: process.env.pipelineId, /* test-web-transcoder */
         // OutputKeyPrefix: 'transecoded/',
-        OutputKeyPrefix: 'transcodedaudios/',
+        OutputKeyPrefix: 'transcodedvideos/',
         Outputs: [
             {
-                Key: outputKey(basename(key),'mp3'),
-                PresetId: '1351620000001-300040', /*Audio MP3 - 128 kilobits/second*/
+                Key: outputKey(basename(key),'mp4'),
+                PresetId: '1351620000001-100070' // System preset: Web (Facebook Youtube)
             }
+            // ,
+            //  {
+            //   Key: outputKey(basename(key) ,'webm'),
+            //  PresetId: '1351620000001-100250', // System preset: Webm VP9 720p
+            //  }
         ]
     };
 
     elastictranscoder.createJob(params, function(err, data) {
-        console.log('Converting the Audio is done for ' + filename);
+        console.log('Converting the video is done for ' + filename);
         if (err){
             console.log(err, err.stack); // an error occurred
             context.fail();
@@ -63,6 +67,5 @@ exports.handler = function(event, context) {
         }
         /** Notify Sonicspan */
         notifySonicspan(filename, context);
-        //context.succeed();
     });
 };
